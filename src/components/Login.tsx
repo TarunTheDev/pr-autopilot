@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface LoginProps {
   onSuccess: () => void;
@@ -41,6 +41,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess }) => {
 
         <div className="h-px bg-white/10 mb-6" />
 
+        <p className="text-sm text-textMuted">hi</p>
         <h1 className="text-3xl font-display font-bold">Welcome back</h1>
         <p className="text-textMuted mt-2 mb-6">Sign in to start evaluating pull requests</p>
 
