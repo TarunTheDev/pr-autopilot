@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, CheckCircle2, FileSearch, Cpu, Brain, FlaskConical, Sparkles, ArrowRight } from 'lucide-react';
+import { Zap, CheckCircle2, FileSearch, Cpu, Brain, FlaskConical, ArrowRight, Sparkles } from 'lucide-react';
 import { useAppStore, type AgentStep } from '../store/useAppStore';
 import { analyzePR, type AnalysisResult } from '../services/api';
 import { parseJiraJson } from '../services/jira';
 import { clsx } from 'clsx';
+import { Starburst } from './retro/RetroBits';
 
 interface LoadingProps {
   onComplete: () => void;
@@ -23,10 +24,22 @@ const STAGE_ICONS: Record<number, React.ReactNode> = {
   6: <FlaskConical size={22} />,
 };
 
-const statusIcons = {
-  pending: <div className="w-3.5 h-3.5 rounded-full bg-white/20" />,
-  active: <Zap size={18} className="text-primary animate-pulse" />,
-  complete: <CheckCircle2 size={18} className="text-success" />,
+const STAGE_LABELS: Record<number, string> = {
+  1: 'PARSING TICKET',
+  2: 'VALIDATING PR',
+  3: 'FETCHING DIFF',
+  4: 'AI EVALUATION',
+  5: 'SYNTHESIZING',
+  6: 'GENERATING TESTS',
+};
+
+const STAGE_COLORS: Record<number, string> = {
+  1: '#ffbe0b',
+  2: '#3a86ff',
+  3: '#06d6a0',
+  4: '#ff5d8f',
+  5: '#8338ec',
+  6: '#fb5607',
 };
 
 export const Loading: React.FC<LoadingProps> = ({
@@ -77,55 +90,32 @@ export const Loading: React.FC<LoadingProps> = ({
     const run = async () => {
       try {
         setAnalysisProgress(8);
-        await reportStage(1, async () => {
-          parseJiraJson(jiraJson);
-        });
+        await reportStage(1, async () => { parseJiraJson(jiraJson); });
         setAnalysisProgress(18);
 
-        await reportStage(2, async () => {
-          await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 150));
-        });
+        await reportStage(2, async () => { await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 150)); });
         setAnalysisProgress(28);
 
-        // Stage 3 diff fetch is handled inside analyzePR() to avoid duplicate GitHub API calls.
-        await reportStage(3, async () => {
-          // Intentionally no-op
-        });
+        await reportStage(3, async () => { /* no-op */ });
         setAnalysisProgress(50);
 
-        await reportStage(4, async () => {
-          await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 100));
-        });
+        await reportStage(4, async () => { await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 100)); });
         setAnalysisProgress(72);
 
-        const result: AnalysisResult = await analyzePR({
-          jiraJson,
-          githubUrl: prUrl,
-          apiKey,
-          githubToken,
-        });
-
+        const result: AnalysisResult = await analyzePR({ jiraJson, githubUrl: prUrl, apiKey, githubToken });
         setVerdict(result.verdict);
         setAnalysisProgress(95);
 
-        await reportStage(5, async () => {
-          await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 200));
-        });
+        await reportStage(5, async () => { await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 200)); });
         setAnalysisProgress(98);
 
-        await reportStage(6, async () => {
-          await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 200));
-        });
+        await reportStage(6, async () => { await new Promise((r) => setTimeout(r, reducedMotion ? 50 : 200)); });
         setAnalysisProgress(100);
 
         setIsComplete(true);
         setShowSuccess(true);
         setIsAnalyzing(false);
-
-        const finishDelay = reducedMotion ? 200 : 1200;
-        setTimeout(() => {
-          onComplete();
-        }, finishDelay);
+        setTimeout(() => onComplete(), reducedMotion ? 200 : 1200);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Analysis failed';
         setError(message);
@@ -136,229 +126,170 @@ export const Loading: React.FC<LoadingProps> = ({
     };
 
     run();
-  }, [
-    jiraJson,
-    prUrl,
-    apiKey,
-    githubToken,
-    reducedMotion,
-    onComplete,
-    setAgentSteps,
-    setIsAnalyzing,
-    setVerdict,
-    setAnalysisProgress,
-    addToast,
-    agentSteps,
-  ]);
+  }, [jiraJson, prUrl, apiKey, githubToken, reducedMotion, onComplete, setAgentSteps, setIsAnalyzing, setVerdict, setAnalysisProgress, addToast, agentSteps]);
 
   const overallProgress = useAppStore((s) => s.analysisProgress);
 
   return (
     <div
       className={clsx(
-        'min-h-screen flex flex-col bg-dark relative overflow-hidden',
+        'retro-scope retro-paper-bg retro-grain min-h-screen overflow-x-clip',
         reducedMotion && 'motion-reduce'
       )}
     >
-      <div className="absolute inset-0 bg-gradient-mesh opacity-50" />
-      <div className="absolute inset-0 cyber-grid opacity-30" />
-
-      {!reducedMotion && (
-        <>
-          <motion.div
-            className="orb w-[700px] h-[700px] bg-primary/15 -top-1/4 -left-1/4"
-            animate={{ scale: [1, 1.2, 1], rotate: [0, 360] }}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-          />
-          <motion.div
-            className="orb w-[500px] h-[500px] bg-secondary/10 bottom-0 right-0"
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        </>
-      )}
-
-      <header className="relative z-10 w-full p-6 flex justify-between items-center border-b border-white/10 bg-dark/50 backdrop-blur-xl">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30">
-            <Zap className="text-white" size={24} />
-          </div>
-          <div>
-            <span className="text-xl font-display font-bold text-textPrimary">PR Autopilot</span>
-            <div className="text-sm text-textMuted flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
-              {isComplete ? 'Analysis complete' : 'AI Analysis in Progress'}
+      {/* Header — retro terminal bar */}
+      <header className="relative z-10 w-full p-4 sm:p-6 border-b-2 border-ink bg-[#fffdf6]">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 bg-ink text-retro-yellow flex items-center justify-center rounded-lg border-2 border-ink shadow-retro-sm">
+              <Zap size={18} />
+            </span>
+            <div>
+              <span className="font-display-retro text-base text-ink">PR AUTOPILOT</span>
+              <div className="font-mono text-xs text-ink/50">
+                {isComplete ? 'ANALYSIS COMPLETE' : 'ANALYSIS IN PROGRESS'}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 px-5 py-2.5 rounded-xl bg-primary/10 border border-primary/20">
-            <div className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-ink border-2 border-ink">
+            <div className="h-2.5 w-28 sm:w-36 border-2 border-retro-green rounded-full overflow-hidden bg-paper">
+              <motion.div
+                className="h-full bg-retro-green border-r-2 border-ink"
+                initial={{ width: '0%' }}
+                animate={{ width: `${Math.round(overallProgress)}%` }}
+                transition={{ duration: 0.4 }}
+              />
             </div>
-            <span className="text-sm font-mono text-primary font-semibold">{Math.round(overallProgress)}%</span>
+            <span className="font-mono text-sm font-bold text-retro-yellow">{Math.round(overallProgress)}%</span>
           </div>
         </div>
       </header>
 
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-2xl">
-          <div className="text-center mb-14">
-            <div
-              className={clsx(
-                'w-28 h-28 mx-auto mb-8 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center relative',
-                !reducedMotion && 'transition-transform'
-              )}
-            >
-              <AnimatePresence mode="wait">
-                {isComplete ? (
-                  <motion.div
-                    key="check"
-                    initial={{ scale: 0, rotate: -180 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: 'spring', stiffness: 200 }}
-                  >
-                    <CheckCircle2 size={56} className="text-success" />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="brain"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                  >
-                    <Brain size={56} className="text-primary" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            <h2 className="text-4xl font-display font-bold text-textPrimary mb-4">
-              {isComplete ? 'Analysis Complete!' : 'Analyzing Your PR'}
-            </h2>
-            <p className="text-textMuted text-lg max-w-md mx-auto">
-              {isComplete
-                ? 'Your evaluation results are ready. Preparing your dashboard...'
-                : 'Our AI is carefully examining your code changes against the ticket requirements'}
-            </p>
-            {error && (
-              <p className="mt-4 text-danger text-sm">Last error: {error}</p>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {agentSteps.map((step, index) => (
-              <StepRow
-                key={step.id}
-                step={step}
-                icon={STAGE_ICONS[step.id]}
-                index={index}
-                reducedMotion={reducedMotion}
-              />
-            ))}
-          </div>
-
-          <AnimatePresence>
-            {showSuccess && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="mt-10 flex justify-center"
-              >
-                <div className="flex items-center gap-3 text-success px-6 py-3 rounded-xl bg-success/10 border border-success/20">
-                  <CheckCircle2 size={24} />
-                  <span className="font-medium">All checks complete - Loading results</span>
-                  {!reducedMotion && (
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
+        <div className="max-w-2xl w-full">
+          {/* Hero block */}
+          <div className="text-center mb-12">
+            {!reducedMotion && (
+              <div className="relative w-32 h-32 mx-auto mb-8">
+                <Starburst className="retro-spin-slow absolute inset-0 w-full h-full text-retro-yellow" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  {isComplete ? (
                     <motion.div
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 1, repeat: Infinity }}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 200 }}
+                      className="w-16 h-16 rounded-full bg-retro-green border-4 border-ink flex items-center justify-center"
                     >
-                      <ArrowRight size={20} />
+                      <CheckCircle2 size={32} className="text-ink" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                      className="w-16 h-16 rounded-full bg-ink border-4 border-retro-yellow flex items-center justify-center"
+                    >
+                      <Brain size={32} className="text-retro-yellow" />
                     </motion.div>
                   )}
                 </div>
+              </div>
+            )}
+
+            <h2 className="font-display-retro text-3xl sm:text-4xl text-ink tracking-tight">
+              {isComplete ? 'VERDICT READY' : 'ANALYZING YOUR PR'}
+            </h2>
+            <p className="mt-3 font-mono text-sm text-ink-soft max-w-md mx-auto">
+              {isComplete
+                ? 'Every criterion stamped with evidence. Preparing your dashboard.'
+                : 'Our agent is checking every acceptance criterion against the real diff.'}
+            </p>
+            {error && (
+              <p className="mt-3 font-mono text-sm text-ink border-2 border-ink rounded-xl px-4 py-2 bg-paper inline-block">
+                ⚠ {error}
+              </p>
+            )}
+          </div>
+
+          {/* Stage stamps */}
+          <div className="space-y-3">
+            {agentSteps.map((step, _index) => (
+              <div
+                key={step.id}
+                className={clsx(
+                  'retro-card retro-lift p-4 flex items-center gap-4',
+                  step.status === 'complete' && '!bg-ink !border-ink'
+                )}
+              >
+                {/* Stage number stamp */}
+                <span
+                  className={clsx(
+                    'retro-pixel-tag w-10 h-10 flex items-center justify-center border-2 border-ink shrink-0',
+                    step.status === 'complete'
+                      ? 'bg-retro-green text-ink'
+                      : step.status === 'active'
+                      ? 'bg-retro-yellow text-ink'
+                      : 'bg-paper text-ink/40'
+                  )}
+                >
+                  {step.status === 'complete' ? <CheckCircle2 size={14} /> : step.id}
+                </span>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className={clsx(
+                      'font-display-retro text-sm tracking-wide',
+                      step.status === 'complete' ? 'text-retro-green' : 'text-ink'
+                    )}>
+                      {STAGE_LABELS[step.id]}
+                    </h3>
+                    <span className="font-mono text-xs text-ink/50">
+                      {step.status === 'complete' ? '✓' : `${Math.round(step.progress)}%`}
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-2 border-2 border-ink rounded-full bg-paper overflow-hidden">
+                    <motion.div
+                      className="h-full border-r-2 border-ink"
+                      style={{ background: step.status === 'complete' ? 'var(--retro-green)' : STAGE_COLORS[step.id] }}
+                      initial={{ width: '0%' }}
+                      animate={{ width: step.status === 'complete' ? '100%' : `${step.progress}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Icon */}
+                <span className={clsx(
+                  'w-10 h-10 border-2 border-ink rounded-lg flex items-center justify-center shrink-0',
+                  step.status === 'complete' ? 'bg-retro-green text-ink' : 'bg-paper text-ink/40'
+                )}>
+                  {STAGE_ICONS[step.id]}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Success banner */}
+          <AnimatePresence>
+            {showSuccess && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mt-8 retro-stamp border-4 border-retro-green text-retro-green font-display-retro text-xl px-6 py-4 rounded-xl text-center"
+              >
+                ✓ ALL CHECKS COMPLETE — LOADING DASHBOARD
+                {!reducedMotion && (
+                  <motion.div animate={{ x: [0, 6, 0] }} transition={{ duration: 1, repeat: Infinity }}>
+                    <ArrowRight size={20} className="inline ml-2" />
+                  </motion.div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
     </div>
-  );
-};
-
-interface StepRowProps {
-  step: AgentStep;
-  icon: React.ReactNode;
-  index: number;
-  reducedMotion: boolean;
-}
-
-const StepRow: React.FC<StepRowProps> = ({ step, icon, index, reducedMotion }) => {
-  const containerAnim = reducedMotion
-    ? {}
-    : {
-        initial: { opacity: 0, x: -30 },
-        animate: { opacity: 1, x: 0 },
-        transition: { delay: index * 0.05 },
-      };
-
-  return (
-    <motion.div
-      {...containerAnim}
-      className={clsx(
-        'glass-card p-6 relative overflow-hidden',
-        step.status === 'active' && 'border-primary/40 bg-primary/5 shadow-lg shadow-primary/10',
-        step.status === 'complete' && 'opacity-80'
-      )}
-    >
-      {!reducedMotion && step.status === 'active' && (
-        <motion.div
-          animate={{ x: ['0%', '100%'] }}
-          style={{ display: 'block' }}
-          transition={{ duration: 1, repeat: Infinity }}
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
-        />
-      )}
-
-      <div className="relative flex items-center gap-5">
-        <div
-          className={clsx(
-            'w-14 h-14 rounded-2xl flex items-center justify-center',
-            step.status === 'active' && 'bg-primary/20 text-primary shadow-lg shadow-primary/20',
-            step.status === 'complete' && 'bg-success/20 text-success',
-            step.status === 'pending' && 'bg-white/5 text-textMuted'
-          )}
-        >
-          {statusIcons[step.status]}
-        </div>
-
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-textPrimary text-lg">{step.title}</h3>
-            <span className="text-sm text-textMuted font-mono">
-              {step.status === 'complete' ? '100%' : `${Math.round(step.progress)}%`}
-            </span>
-          </div>
-          <p className="text-sm text-textMuted">{step.description}</p>
-
-          {step.status === 'active' && (
-            <div className="mt-4 h-2 bg-white/10 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
-                initial={{ width: '0%' }}
-                animate={{ width: `${step.progress}%` }}
-                transition={{ duration: 0.5 }}
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="text-textMuted opacity-50">{icon}</div>
-      </div>
-    </motion.div>
   );
 };
